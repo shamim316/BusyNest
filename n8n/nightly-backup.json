@@ -1,0 +1,144 @@
+{
+  "name": "BusyNest — Nightly backup to VPS",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 2 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-1",
+      "name": "Every night 2:30",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "url": "https://YOUR-PROJECT-REF.supabase.co/rest/v1/projects?select=*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "YOUR-SERVICE-ROLE-KEY" },
+            { "name": "Authorization", "value": "Bearer YOUR-SERVICE-ROLE-KEY" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http-projects",
+      "name": "Fetch projects",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, -220]
+    },
+    {
+      "parameters": {
+        "url": "https://YOUR-PROJECT-REF.supabase.co/rest/v1/tasks?select=*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "YOUR-SERVICE-ROLE-KEY" },
+            { "name": "Authorization", "value": "Bearer YOUR-SERVICE-ROLE-KEY" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http-tasks",
+      "name": "Fetch tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, -70]
+    },
+    {
+      "parameters": {
+        "url": "https://YOUR-PROJECT-REF.supabase.co/rest/v1/task_dependencies?select=*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "YOUR-SERVICE-ROLE-KEY" },
+            { "name": "Authorization", "value": "Bearer YOUR-SERVICE-ROLE-KEY" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http-deps",
+      "name": "Fetch dependencies",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 80]
+    },
+    {
+      "parameters": {
+        "url": "https://YOUR-PROJECT-REF.supabase.co/rest/v1/pages?select=*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "YOUR-SERVICE-ROLE-KEY" },
+            { "name": "Authorization", "value": "Bearer YOUR-SERVICE-ROLE-KEY" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http-pages",
+      "name": "Fetch pages",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 230]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Bundle all four tables into one JSON backup document\nconst backup = {\n  created_at: new Date().toISOString(),\n  projects: $('Fetch projects').all().map(i => i.json),\n  tasks: $('Fetch tasks').all().map(i => i.json),\n  task_dependencies: $('Fetch dependencies').all().map(i => i.json),\n  pages: $('Fetch pages').all().map(i => i.json),\n}\nreturn [{ json: backup }]"
+      },
+      "id": "code-1",
+      "name": "Bundle backup",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 0]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "options": {}
+      },
+      "id": "convert-1",
+      "name": "Convert to file",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/backups/busynest-{{ $now.format('yyyy-MM-dd') }}.json",
+        "options": {}
+      },
+      "id": "write-1",
+      "name": "Save to VPS disk",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [860, 0]
+    }
+  ],
+  "connections": {
+    "Every night 2:30": {
+      "main": [[
+        { "node": "Fetch projects", "type": "main", "index": 0 },
+        { "node": "Fetch tasks", "type": "main", "index": 0 },
+        { "node": "Fetch dependencies", "type": "main", "index": 0 },
+        { "node": "Fetch pages", "type": "main", "index": 0 }
+      ]]
+    },
+    "Fetch projects": { "main": [[{ "node": "Bundle backup", "type": "main", "index": 0 }]] },
+    "Fetch tasks": { "main": [[{ "node": "Bundle backup", "type": "main", "index": 0 }]] },
+    "Fetch dependencies": { "main": [[{ "node": "Bundle backup", "type": "main", "index": 0 }]] },
+    "Fetch pages": { "main": [[{ "node": "Bundle backup", "type": "main", "index": 0 }]] },
+    "Bundle backup": { "main": [[{ "node": "Convert to file", "type": "main", "index": 0 }]] },
+    "Convert to file": { "main": [[{ "node": "Save to VPS disk", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

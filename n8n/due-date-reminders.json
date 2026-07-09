@@ -1,0 +1,90 @@
+{
+  "name": "BusyNest — Daily due-date reminders",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-1",
+      "name": "Every morning 7:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "url": "=https://YOUR-PROJECT-REF.supabase.co/rest/v1/tasks?select=title,due_date,status,priority&status=neq.done&due_date=lte.{{ $now.format('yyyy-MM-dd') }}&order=due_date",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "YOUR-SERVICE-ROLE-KEY" },
+            { "name": "Authorization", "value": "Bearer YOUR-SERVICE-ROLE-KEY" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http-1",
+      "name": "Get due & overdue tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "loose" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.title }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "if-1",
+      "name": "Any tasks due?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "fromEmail": "busynest@yourdomain.com",
+        "toEmail": "you@example.com",
+        "subject": "=BusyNest: {{ $items().length }} task(s) need attention today",
+        "text": "=Tasks due today or overdue:\n\n{{ $items().map(i => `• ${i.json.title} (due ${i.json.due_date}, ${i.json.priority} priority)`).join('\\n') }}\n\nOpen BusyNest to get started!",
+        "options": {}
+      },
+      "id": "email-1",
+      "name": "Send reminder email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [660, -80]
+    }
+  ],
+  "connections": {
+    "Every morning 7:00": {
+      "main": [[{ "node": "Get due & overdue tasks", "type": "main", "index": 0 }]]
+    },
+    "Get due & overdue tasks": {
+      "main": [[{ "node": "Any tasks due?", "type": "main", "index": 0 }]]
+    },
+    "Any tasks due?": {
+      "main": [
+        [{ "node": "Send reminder email", "type": "main", "index": 0 }],
+        []
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" }
+}
