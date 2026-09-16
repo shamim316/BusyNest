@@ -129,3 +129,42 @@ alter table public.projects replica identity full;
 alter table public.tasks replica identity full;
 alter table public.task_dependencies replica identity full;
 alter table public.pages replica identity full;
+
+-- ---------- Keep-alive ----------
+-- Supabase pauses free projects after ~1 week with too little database
+-- activity. A scheduled ping (see n8n/keep-alive.json) calls the function
+-- below once a day, which counts as real activity and keeps the project
+-- awake. Nothing in the app itself uses this.
+
+create table if not exists public.keepalive (
+  id         smallint primary key default 1,
+  last_ping  timestamptz not null default now(),
+  ping_count bigint not null default 0,
+  constraint keepalive_single_row check (id = 1)
+);
+
+insert into public.keepalive (id) values (1) on conflict (id) do nothing;
+
+-- RLS on with no policies: nothing can read or write this table
+-- directly. Only the security-definer function below can touch it.
+alter table public.keepalive enable row level security;
+
+create or replace function public.ping_keepalive()
+returns timestamptz
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  pinged timestamptz;
+begin
+  update public.keepalive
+     set last_ping  = now(),
+         ping_count = ping_count + 1
+   where id = 1
+  returning last_ping into pinged;
+  return pinged;
+end;
+$$;
+
+grant execute on function public.ping_keepalive() to anon, authenticated;

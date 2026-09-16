@@ -1,0 +1,51 @@
+name: Keep Supabase awake
+
+# A backup for the n8n keep-alive workflow. Runs on GitHub's servers, so
+# it keeps pinging even if your VPS or n8n is down.
+#
+# SETUP (one time):
+#   Repo -> Settings -> Secrets and variables -> Actions -> New secret
+#     SUPABASE_URL       = https://YOUR-PROJECT-REF.supabase.co
+#     SUPABASE_ANON_KEY  = your anon/public key
+#
+# NOTE: GitHub disables scheduled workflows in a repository that has had
+# no commits for 60 days. It emails you first, and one click re-enables
+# it — but this is why n8n remains the primary keep-alive.
+
+on:
+  schedule:
+    - cron: '0 7 * * *'   # every day at 07:00 UTC
+  workflow_dispatch:       # lets you run it by hand from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the BusyNest database
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::SUPABASE_URL and SUPABASE_ANON_KEY repository secrets are not set."
+            exit 1
+          fi
+
+          status=$(curl --silent --show-error --max-time 30 \
+            --output /tmp/response.txt --write-out '%{http_code}' \
+            --request POST "${SUPABASE_URL}/rest/v1/rpc/ping_keepalive" \
+            --header "apikey: ${SUPABASE_ANON_KEY}" \
+            --header "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            --header 'Content-Type: application/json' \
+            --data '{}')
+
+          echo "HTTP ${status}"
+          cat /tmp/response.txt
+          echo
+
+          if [ "$status" != "200" ]; then
+            echo "::error::Keep-alive ping failed with HTTP ${status}. If this keeps failing, Supabase will pause the project."
+            exit 1
+          fi
+
+          echo "Database pinged successfully."

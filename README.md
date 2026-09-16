@@ -70,17 +70,24 @@ docker compose up --build
 ```
 Open http://localhost:8080 — same app, running on your PC.
 
-### Part 4 — n8n automations (optional, ~10 min)
+### Part 4 — n8n automations (~10 min)
 
-Import the two workflows in the [`n8n/`](n8n/) folder into your n8n
-instance:
+Import the workflows in the [`n8n/`](n8n/) folder into your n8n instance:
 
+- **Keep Supabase awake** — ⚠️ *not optional if you're on the free plan.*
+  Supabase pauses free projects after about a week of low activity, which
+  takes BusyNest offline until you restore it by hand. This pings your
+  database twice a day so that never happens.
 - **Daily due-date reminders** — emails you each morning when tasks are due
   or overdue.
 - **Nightly backup to VPS** — saves all your data as a dated JSON file on
   your VPS disk every night.
 
 Full instructions in [`n8n/README.md`](n8n/README.md).
+
+A second, independent keep-alive ping is also included as a GitHub Action
+([`.github/workflows/keep-alive.yml`](.github/workflows/keep-alive.yml)) so
+your project stays awake even if your VPS is down.
 
 ---
 
@@ -108,9 +115,38 @@ so redeploying never touches it.
 ## Project layout (for the curious)
 
 ```
-src/                  React app (screens in src/components)
-supabase/schema.sql   Database tables + security rules
-n8n/                  Importable automation workflows
-Dockerfile            Builds the app and serves it with nginx
-docker-compose.yml    Local run with Docker Desktop
+src/                    React app (screens in src/components)
+supabase/schema.sql     Database tables + security rules
+supabase/keepalive.sql  Heartbeat for the anti-pause ping
+n8n/                    Importable automation workflows
+.github/workflows/      Backup keep-alive ping on GitHub's servers
+Dockerfile              Builds the app and serves it with nginx
+docker-compose.yml      Local run with Docker Desktop
 ```
+
+---
+
+## Troubleshooting
+
+**"Project paused" / the app can't load anything.** Supabase paused your
+free project for inactivity. Restore it from the Supabase dashboard, then
+set up the keep-alive in Part 4 so it doesn't happen again. Supabase
+permanently deletes projects left paused for a long time, so don't leave it
+sitting — and keep the nightly backup workflow active.
+
+**Confirmation emails link to `localhost:3000`.** In Supabase, open
+**Authentication → URL Configuration**, set **Site URL** to your real
+domain and add `https://your-domain.com/**` to **Redirect URLs**. For a
+personal app you can also turn off **Confirm email** entirely under
+**Authentication → Sign In / Providers → Email**.
+
+**Easypanel says "Branch not found".** Check that the branch name in the
+service's Source settings matches a branch that exists in the repository.
+
+**The app shows "Almost there!".** The `SUPABASE_URL` and
+`SUPABASE_ANON_KEY` environment variables aren't reaching the container.
+Check them in Easypanel and redeploy.
+
+**The keep-alive ping returns "function not found".** You haven't run
+[`supabase/keepalive.sql`](supabase/keepalive.sql) in the Supabase SQL
+editor yet.

@@ -1,0 +1,82 @@
+{
+  "name": "BusyNest — Keep Supabase awake",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6,18 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-1",
+      "name": "Twice daily (6:00 & 18:00)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR-PROJECT-REF.supabase.co/rest/v1/rpc/ping_keepalive",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "YOUR-ANON-KEY" },
+            { "name": "Authorization", "value": "Bearer YOUR-ANON-KEY" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "http-1",
+      "name": "Ping the database",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 0],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {},
+      "id": "noop-1",
+      "name": "Ping OK",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [520, -90]
+    },
+    {
+      "parameters": {
+        "fromEmail": "busynest@yourdomain.com",
+        "toEmail": "you@example.com",
+        "subject": "⚠️ BusyNest keep-alive ping FAILED",
+        "text": "=The scheduled ping to your Supabase database did not succeed.\n\nIf this keeps failing for about a week, Supabase will pause the project and BusyNest will stop working until you restore it from the Supabase dashboard.\n\nError details:\n{{ JSON.stringify($json, null, 2) }}\n\nThings to check:\n• Is the project already paused? (Supabase dashboard -> your project)\n• Has the anon key been rotated?\n• Did you run supabase/keepalive.sql to create the ping_keepalive function?",
+        "options": {}
+      },
+      "id": "email-1",
+      "name": "Alert me it failed",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [520, 100]
+    }
+  ],
+  "connections": {
+    "Twice daily (6:00 & 18:00)": {
+      "main": [[{ "node": "Ping the database", "type": "main", "index": 0 }]]
+    },
+    "Ping the database": {
+      "main": [
+        [{ "node": "Ping OK", "type": "main", "index": 0 }],
+        [{ "node": "Alert me it failed", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" }
+}
